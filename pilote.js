@@ -117,8 +117,16 @@ function envoyerInspection(url, commandes, suite) {
 // Une fois TizenBrew en place, sa fermeture par le site ramène à l'accueil au lieu de quitter l'application.
 var PIEGE = "window.close=function(){fetch('http://127.0.0.1:8099/accueil',{mode:'no-cors'}).catch(function(){})};1";
 
-function poserPiege(ws) {
-  envoyerInspection(ws, [{ id: 3, method: 'Runtime.evaluate', params: { expression: PIEGE } }], function () {});
+// La page met du temps à se charger et peut se recharger : on repose le piège plusieurs fois.
+function poserPiege() {
+  [0, 4000, 10000, 20000, 40000].forEach(function (delai) {
+    setTimeout(function () {
+      chercher(portsEnEcoute(), function (r) {
+        if (!r || r.url.indexOf('http') !== 0 || /127\.0\.0\.1/.test(r.url)) return;
+        envoyerInspection(r.ws, [{ id: 3, method: 'Runtime.evaluate', params: { expression: PIEGE } }], function () {});
+      });
+    }, delai);
+  });
 }
 
 function hote(url) {
@@ -134,7 +142,7 @@ function aller(url, touches) {
     setTimeout(function () {
       chercher(portsEnEcoute(), function (r) {
         if (!r) return setTimeout(tenter, 1500);
-        if (hote(r.url) === hote(url)) { poserPiege(r.ws); return; }
+        if (hote(r.url) === hote(url)) { poserPiege(); return; }
         var commandes = [];
         if (touches && r.url.indexOf('file:') === 0) commandes.push({ id: 1, method: 'Runtime.evaluate', params: { expression: touches } });
         commandes.push({ id: 2, method: 'Page.navigate', params: { url: url } });
@@ -142,7 +150,7 @@ function aller(url, touches) {
           setTimeout(function () {
             chercher(portsEnEcoute(), function (v) {
               if (!v || hote(v.url) !== hote(url)) tenter();
-              else poserPiege(v.ws);
+              else poserPiege();
             });
           }, 3500);
         });

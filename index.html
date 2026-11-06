@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Accueil</title>
+<meta name="viewport" content="width=1920">
+<style>
+  @font-face { font-family: Outfit; font-weight: 500; font-display: swap;
+    src: url(https://cdn.jsdelivr.net/npm/@fontsource/outfit@5.0.13/files/outfit-latin-500-normal.woff2) format('woff2'); }
+  @font-face { font-family: Outfit; font-weight: 600; font-display: swap;
+    src: url(https://cdn.jsdelivr.net/npm/@fontsource/outfit@5.0.13/files/outfit-latin-600-normal.woff2) format('woff2'); }
+
+  :root {
+    --fond: #0b0d11;
+    --surface: rgba(16, 19, 25, .82);
+    --surface-pleine: #161a21;
+    --texte: #f3f4f6;
+    --discret: #b4bac4;
+    --accent: #f5b544;
+    --rayon: 20px;
+    --marge: 96px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--fond); color: var(--texte);
+    font-family: Outfit, SamsungOne, system-ui, sans-serif; font-weight: 500; }
+
+  .couche { position: fixed; inset: 0; background: var(--fond) center / cover no-repeat; opacity: 0; transition: opacity 1.2s ease; }
+  .couche.visible { opacity: 1; }
+  #voile { position: fixed; inset: 0;
+    background: linear-gradient(to top, rgba(11, 13, 17, .94) 0, rgba(11, 13, 17, .55) 38%, rgba(11, 13, 17, .12) 70%, rgba(11, 13, 17, .34) 100%); }
+
+  #heure { position: fixed; left: var(--marge); top: 64px; }
+  #horloge { font-size: 136px; font-weight: 600; line-height: 1; letter-spacing: -.02em; }
+  #date { margin-top: 12px; font-size: 38px; color: var(--texte); }
+  #date::first-letter { text-transform: uppercase; }
+
+  #titre { position: fixed; left: var(--marge); bottom: 296px; font-size: 56px; font-weight: 600; }
+
+  #tuiles { position: fixed; left: var(--marge); right: var(--marge); bottom: 96px; display: flex; gap: 24px; }
+  .tuile { flex: 1 1 0; min-width: 0; max-width: 216px; height: 156px; display: flex; align-items: center; justify-content: center; padding: 28px;
+    background: var(--surface); border-radius: var(--rayon); outline: 4px solid transparent; outline-offset: 0;
+    transition: transform .16s ease-out; }
+  .tuile.active { transform: scale(1.12); outline-color: var(--texte); background: var(--surface-pleine); }
+  .tuile img { max-width: 100%; max-height: 84px; display: block; }
+  .tuile img.icone { width: 84px; height: 84px; filter: invert(1); }
+  .tuile span { font-size: 36px; font-weight: 600; text-align: center; }
+
+  #message { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); padding: 14px 30px; font-size: 28px;
+    background: var(--surface-pleine); border-radius: var(--rayon); opacity: 0; transition: opacity .2s; }
+  #message.visible { opacity: 1; }
+
+  #panneau { position: fixed; inset: 0; display: none; padding: 72px var(--marge); background: var(--fond); }
+  #panneau.ouvert { display: block; }
+  #panneau h1 { font-size: 56px; font-weight: 600; margin-bottom: 44px; }
+  #panneau h2 { font-size: 32px; font-weight: 500; color: var(--discret); margin: 40px 0 18px; }
+  .rangee { display: flex; gap: 20px; }
+  .option { padding: 16px 36px; font-size: 32px; background: var(--surface-pleine); border-radius: var(--rayon);
+    outline: 4px solid transparent; transition: transform .14s ease-out; white-space: nowrap; }
+  .option.choisie { color: var(--accent); }
+  .option.active { transform: scale(1.06); outline-color: var(--texte); }
+  .photo { flex: 0 0 272px; height: 153px; padding: 0; background: var(--surface-pleine) center / cover no-repeat; position: relative; }
+  .photo.choisie { box-shadow: inset 0 -10px 0 var(--accent); }
+  #aide { position: fixed; left: var(--marge); bottom: 48px; font-size: 28px; color: var(--discret); }
+
+  #veille { position: fixed; inset: 0; display: none; background: var(--fond); }
+  #veille.active { display: block; }
+  #veille .couche { transition: opacity 2.5s ease; transform: scale(1); }
+  #veille .couche.visible { animation: lent 45s linear forwards; }
+  @keyframes lent { to { transform: scale(1.08); } }
+  #veille-heure { position: fixed; font-size: 76px; font-weight: 600; text-shadow: 0 2px 18px rgba(11, 13, 17, .75); transition: opacity .6s; }
+  @media (prefers-reduced-motion: reduce) {
+    .tuile, .option, .couche { transition: none; }
+    #veille .couche.visible { animation: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="couche" id="fond1"></div>
+  <div class="couche" id="fond2"></div>
+  <div id="voile"></div>
+
+  <div id="heure">
+    <div id="horloge"></div>
+    <div id="date"></div>
+  </div>
+
+  <div id="titre"></div>
+  <div id="tuiles"></div>
+  <div id="message"></div>
+
+  <div id="panneau">
+    <h1>Personnaliser</h1>
+    <h2>Fond d'écran</h2>
+    <div class="rangee" id="r-photos"></div>
+    <h2>Écran de veille</h2>
+    <div class="rangee" id="r-veille"></div>
+    <h2>Ouvrir cet accueil au lancement de TizenBrew</h2>
+    <div class="rangee" id="r-auto"></div>
+    <div id="aide">Retour pour fermer</div>
+  </div>
+
+  <div id="veille">
+    <div class="couche" id="v1"></div>
+    <div class="couche" id="v2"></div>
+    <div id="veille-heure"></div>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  var API = 'http://127.0.0.1:8001/api/v2/applications/';
+  var SERVICE = 'ws://127.0.0.1:8081';
+  var MODULE_ACCUEIL = 'gh/netfunn3r/tv-accueil';
+  var MODULE_ANIME = 'gh/netfunn3r/tv-anime-sama';
+  var VERSION_ANIME = MODULE_ANIME + '@1.0.6';
+  var EV = { MODULES: 4, LANCER: 5, ACTION: 10 };
+
+  var ICONES = 'https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/';
+  var LOGOS = 'https://cdn.simpleicons.org/';
+  var TUILES = [
+    { nom: 'YouTube', module: 'npm/@foxreis/tizentube', logo: LOGOS + 'youtube' },
+    { nom: 'Anime-Sama', module: MODULE_ANIME, logo: 'https://anime-sama.to/img/opti/logo_banniere.webp' },
+    { nom: 'Netflix', appli: '3201907018807', logo: LOGOS + 'netflix' },
+    { nom: 'Disney+', appli: '3201901017640' },
+    { nom: 'Crunchyroll', appli: 'OGLLvqej7u.CrunchyrollWebApp', logo: LOGOS + 'crunchyroll' },
+    { nom: 'Deezer', appli: '3201608010191', logo: LOGOS + 'deezer' },
+    { nom: 'Internet', appli: '3202010022079', icone: ICONES + 'globe.svg' },
+    { nom: 'Personnaliser', panneau: true, icone: ICONES + 'sliders-horizontal.svg' }
+  ];
+  var PHOTOS = [1022, 1015, 1036, 1018, 1039, 1043];
+  var DELAIS = [{ nom: '1 min', min: 1 }, { nom: '2 min', min: 2 }, { nom: '5 min', min: 5 }, { nom: '10 min', min: 10 }, { nom: 'Jamais', min: 0 }];
+
+  var R = lire();
+  var $ = function (id) { return document.getElementById(id); };
+
+  function lire() {
+    var d = { photo: PHOTOS[0], veille: 2, auto: null };
+    try {
+      var s = JSON.parse(localStorage.getItem('accueil') || '{}');
+      if (PHOTOS.indexOf(s.photo) >= 0) d.photo = s.photo;
+      if (typeof s.veille === 'number') d.veille = s.veille;
+      if (typeof s.auto === 'boolean') d.auto = s.auto;
+    } catch (e) { /* réglages par défaut */ }
+    return d;
+  }
+  function ecrire() {
+    try { localStorage.setItem('accueil', JSON.stringify(R)); } catch (e) { /* non enregistré */ }
+  }
+
+  /* ---------- Fond d'écran ---------- */
+
+  function urlPhoto(id, l, h) { return 'https://picsum.photos/id/' + id + '/' + l + '/' + h; }
+
+  var fondActif = 1;
+  function poserFond(id) {
+    var img = new Image();
+    img.onload = function () {
+      var suivant = fondActif === 1 ? 2 : 1;
+      $('fond' + suivant).style.backgroundImage = 'url(' + img.src + ')';
+      $('fond' + suivant).classList.add('visible');
+      $('fond' + fondActif).classList.remove('visible');
+      fondActif = suivant;
+    };
+    img.src = urlPhoto(id, 1920, 1080);
+  }
+
+  /* ---------- Horloge ---------- */
+
+  function majHeure() {
+    var n = new Date();
+    var h = n.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    $('horloge').textContent = h;
+    $('veille-heure').textContent = h;
+    $('date').textContent = n.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  }
+
+  /* ---------- Tuiles ---------- */
+
+  var visibles = TUILES.slice();
+  var index = 0;
+
+  function dessinerTuiles() {
+    var zone = $('tuiles');
+    zone.textContent = '';
+    visibles.forEach(function (t, i) {
+      var d = document.createElement('div');
+      d.className = 'tuile' + (i === index ? ' active' : '');
+      var src = t.logo || t.icone;
+      if (src) {
+        var img = document.createElement('img');
+        if (t.icone) img.className = 'icone';
+        img.alt = '';
+        img.src = src;
+        img.onerror = function () {
+          var s = document.createElement('span');
+          s.textContent = t.nom;
+          img.replaceWith(s);
+        };
+        d.appendChild(img);
+      } else {
+        var s = document.createElement('span');
+        s.textContent = t.nom;
+        d.appendChild(s);
+      }
+      zone.appendChild(d);
+    });
+    $('titre').textContent = visibles[index].nom;
+  }
+
+  function focaliser(i) {
+    index = Math.max(0, Math.min(i, visibles.length - 1));
+    var liste = $('tuiles').children;
+    for (var k = 0; k < liste.length; k++) liste[k].classList.toggle('active', k === index);
+    $('titre').textContent = visibles[index].nom;
+  }
+
+  // Une application qui n'est pas installée n'apparaît pas : Deezer arrivera tout seul une fois installé.
+  function retirerAbsentes() {
+    TUILES.forEach(function (t) {
+      if (!t.appli) return;
+      fetch(API + t.appli).then(function (r) {
+        if (r.status !== 404) return;
+        var i = visibles.indexOf(t);
+        if (i < 0) return;
+        var courante = visibles[index];
+        visibles.splice(i, 1);
+        index = Math.max(visibles.indexOf(courante), 0);
+        dessinerTuiles();
+      }).catch(function () { /* télé injoignable : on garde la tuile */ });
+    });
+  }
+
+  var delaiMessage = null;
+  function dire(texte) {
+    $('message').textContent = texte;
+    $('message').classList.add('visible');
+    clearTimeout(delaiMessage);
+    delaiMessage = setTimeout(function () { $('message').classList.remove('visible'); }, 3000);
+  }
+
+  function lancer(t) {
+    if (t.panneau) { ouvrirPanneau(); return; }
+    if (t.appli) {
+      dire('Ouverture de ' + t.nom);
+      fetch(API + t.appli, { method: 'POST', mode: 'no-cors' }).catch(function () {
+        dire(t.nom + " ne s'ouvre pas");
+      });
+      return;
+    }
+    var m = trouverModule(t.module);
+    if (!m) {
+      dire('TizenBrew prépare ' + t.nom + ', réessaie dans un instant');
+      demanderModules(true);
+      return;
+    }
+    dire('Ouverture de ' + t.nom);
+    (m.keys || []).forEach(function (k) {
+      try { window.tizen.tvinputdevice.registerKey(k); } catch (e) { /* touche indisponible */ }
+    });
+    envoyer(EV.LANCER, m);
+    if (!m.evaluateScriptOnDocumentStart) setTimeout(function () { location.href = m.appPath; }, 120);
+  }
+
+  /* ---------- Service TizenBrew ---------- */
+
+  var socket = null;
+  var modules = [];
+
+  function envoyer(type, payload) {
+    if (socket && socket.readyState === 1) socket.send(JSON.stringify({ type: type, payload: payload }));
+  }
+  function demanderModules(frais) { envoyer(EV.MODULES, !!frais); }
+
+  function trouverModule(prefixe) {
+    for (var i = 0; i < modules.length; i++) {
+      if (modules[i].fullName.indexOf(prefixe) === 0) return modules[i];
+    }
+    return null;
+  }
+
+  // Remplace l'ancienne version du module Anime-Sama par celle que cet accueil attend.
+  function mettreAJourAnime() {
+    var m = trouverModule(MODULE_ANIME);
+    if (!m || m.fullName === VERSION_ANIME) return false;
+    envoyer(EV.ACTION, { action: 'add', module: VERSION_ANIME });
+    envoyer(EV.ACTION, { action: 'remove', module: m.fullName });
+    return true;
+  }
+
+  function connecter() {
+    try { socket = new WebSocket(SERVICE); } catch (e) { return; }
+    socket.onopen = function () { demanderModules(true); };
+    socket.onmessage = function (e) {
+      var m;
+      try { m = JSON.parse(e.data); } catch (err) { return; }
+      if (m.type === EV.MODULES && m.payload) {
+        modules = m.payload;
+        if (mettreAJourAnime()) { demanderModules(true); return; }
+        var moi = trouverModule(MODULE_ACCUEIL);
+        if (moi) envoyer(EV.LANCER, moi);
+      } else if (m.type === EV.LANCER) {
+        var cible = trouverModule(m.payload);
+        if (cible) location.href = cible.appPath;
+      }
+    };
+    socket.onclose = function () { setTimeout(connecter, 4000); };
+  }
+
+  /* ---------- Panneau Personnaliser ---------- */
+
+  var lignes = [];
+  var ligne = 0;
+  var colonne = 0;
+
+  function dessinerPanneau() {
+    $('r-photos').textContent = '';
+    PHOTOS.forEach(function (id) {
+      var d = document.createElement('div');
+      d.className = 'option photo' + (id === R.photo ? ' choisie' : '');
+      d.style.backgroundImage = 'url(' + urlPhoto(id, 480, 270) + ')';
+      $('r-photos').appendChild(d);
+    });
+    $('r-veille').textContent = '';
+    DELAIS.forEach(function (o) {
+      var d = document.createElement('div');
+      d.className = 'option' + (o.min === R.veille ? ' choisie' : '');
+      d.textContent = o.nom;
+      $('r-veille').appendChild(d);
+    });
+    $('r-auto').textContent = '';
+    ['Oui', 'Non'].forEach(function (nom) {
+      var d = document.createElement('div');
+      d.className = 'option' + (R.auto !== null && (nom === 'Oui') === R.auto ? ' choisie' : '');
+      d.textContent = nom;
+      $('r-auto').appendChild(d);
+    });
+    lignes = [$('r-photos'), $('r-veille'), $('r-auto')];
+    marquer();
+  }
+
+  function marquer() {
+    lignes.forEach(function (l, i) {
+      for (var k = 0; k < l.children.length; k++) l.children[k].classList.toggle('active', i === ligne && k === colonne);
+    });
+  }
+
+  function ouvrirPanneau() {
+    ligne = 0;
+    colonne = Math.max(PHOTOS.indexOf(R.photo), 0);
+    dessinerPanneau();
+    $('panneau').classList.add('ouvert');
+  }
+  function fermerPanneau() { $('panneau').classList.remove('ouvert'); }
+  function panneauOuvert() { return $('panneau').classList.contains('ouvert'); }
+
+  function validerPanneau() {
+    if (ligne === 0) {
+      R.photo = PHOTOS[colonne];
+      poserFond(R.photo);
+    } else if (ligne === 1) {
+      R.veille = DELAIS[colonne].min;
+      relancerVeille();
+    } else {
+      var moi = trouverModule(MODULE_ACCUEIL);
+      R.auto = colonne === 0;
+      envoyer(EV.ACTION, { action: 'autolaunch', module: R.auto && moi ? moi.fullName : '' });
+    }
+    ecrire();
+    dessinerPanneau();
+  }
+
+  function touchesPanneau(code) {
+    if (code === 37) colonne = Math.max(colonne - 1, 0);
+    else if (code === 39) colonne = Math.min(colonne + 1, lignes[ligne].children.length - 1);
+    else if (code === 38 || code === 40) {
+      ligne = Math.max(0, Math.min(ligne + (code === 40 ? 1 : -1), lignes.length - 1));
+      colonne = Math.min(colonne, lignes[ligne].children.length - 1);
+    } else if (code === 13) { validerPanneau(); return; }
+    marquer();
+  }
+
+  /* ---------- Écran de veille ---------- */
+
+  var delaiVeille = null;
+  var boucleVeille = null;
+  var boucleHeure = null;
+  var rangVeille = 0;
+  var coucheVeille = 1;
+
+  function veilleActive() { return $('veille').classList.contains('active'); }
+
+  function relancerVeille() {
+    clearTimeout(delaiVeille);
+    if (R.veille > 0) delaiVeille = setTimeout(demarrerVeille, R.veille * 60000);
+  }
+
+  function photoSuivante() {
+    rangVeille = (rangVeille + 1) % PHOTOS.length;
+    var img = new Image();
+    img.onload = function () {
+      var suivante = coucheVeille === 1 ? 2 : 1;
+      var c = $('v' + suivante);
+      c.style.backgroundImage = 'url(' + img.src + ')';
+      c.classList.remove('visible');
+      void c.offsetWidth;
+      c.classList.add('visible');
+      $('v' + coucheVeille).classList.remove('visible');
+      coucheVeille = suivante;
+    };
+    img.src = urlPhoto(PHOTOS[rangVeille], 1920, 1080);
+  }
+
+  // L'heure change de place pour ne pas marquer l'écran.
+  function deplacerHeureVeille() {
+    var h = $('veille-heure');
+    h.style.left = Math.round(96 + Math.random() * 1450) + 'px';
+    h.style.top = Math.round(72 + Math.random() * 820) + 'px';
+  }
+
+  function demarrerVeille() {
+    if (panneauOuvert()) { relancerVeille(); return; }
+    $('veille').classList.add('active');
+    rangVeille = Math.max(PHOTOS.indexOf(R.photo), 0) - 1;
+    deplacerHeureVeille();
+    photoSuivante();
+    boucleVeille = setInterval(photoSuivante, 45000);
+    boucleHeure = setInterval(deplacerHeureVeille, 60000);
+  }
+
+  function arreterVeille() {
+    $('veille').classList.remove('active');
+    clearInterval(boucleVeille);
+    clearInterval(boucleHeure);
+  }
+
+  /* ---------- Touches ---------- */
+
+  window.addEventListener('keydown', function (e) {
+    var code = e.keyCode;
+    relancerVeille();
+    if (veilleActive()) {
+      arreterVeille();
+      e.preventDefault();
+      return;
+    }
+    var retour = code === 10009 || code === 27;
+    if (panneauOuvert()) {
+      if (retour) fermerPanneau(); else touchesPanneau(code);
+    } else if (code === 37) focaliser(index - 1);
+    else if (code === 39) focaliser(index + 1);
+    else if (code === 13) lancer(visibles[index]);
+    else if (retour) {
+      try { window.tizen.application.getCurrentApplication().hide(); } catch (err) { /* hors télé */ }
+    } else return;
+    e.preventDefault();
+  });
+
+  majHeure();
+  setInterval(majHeure, 10000);
+  poserFond(R.photo);
+  dessinerTuiles();
+  retirerAbsentes();
+  connecter();
+  relancerVeille();
+})();
+</script>
+</body>
+</html>

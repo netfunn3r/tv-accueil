@@ -89,7 +89,7 @@ function trameTexte(texte, masquer) {
 }
 
 // Envoie des commandes à l'inspection de TizenBrew, puis referme.
-function envoyerInspection(url, commandes, suite) {
+function envoyerInspection(url, commandes, suite, duree) {
   var m = /^ws:\/\/([^:\/]+):(\d+)(\/.*)$/.exec(url);
   if (!m) return suite();
   var fini = false;
@@ -106,10 +106,10 @@ function envoyerInspection(url, commandes, suite) {
     if (recu.indexOf('\r\n\r\n') < 0) return;
     pret = true;
     commandes.forEach(function (c) { sock.write(trameTexte(JSON.stringify(c), true)); });
-    setTimeout(conclure, 500);
+    setTimeout(conclure, duree || 500);
   });
   sock.on('error', conclure);
-  setTimeout(conclure, 4000);
+  setTimeout(conclure, (duree || 500) + 3500);
 }
 
 /* ---------- Changement de page ---------- */
@@ -145,15 +145,15 @@ function aller(url, touches) {
         if (hote(r.url) === hote(url)) { poserPiege(); return; }
         var commandes = [];
         if (touches && r.url.indexOf('file:') === 0) commandes.push({ id: 1, method: 'Runtime.evaluate', params: { expression: touches } });
+        commandes.push({ id: 4, method: 'Page.enable' });
         commandes.push({ id: 2, method: 'Page.navigate', params: { url: url } });
+        // Couper la connexion trop tôt annule le changement de page en cours : on la garde le temps qu'il aboutisse.
         envoyerInspection(r.ws, commandes, function () {
-          setTimeout(function () {
-            chercher(portsEnEcoute(), function (v) {
-              if (!v || hote(v.url) !== hote(url)) tenter();
-              else poserPiege();
-            });
-          }, 3500);
-        });
+          chercher(portsEnEcoute(), function (v) {
+            if (!v || hote(v.url) !== hote(url)) tenter();
+            else poserPiege();
+          });
+        }, 6000);
       });
     }, 900);
   };

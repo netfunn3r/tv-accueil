@@ -313,7 +313,10 @@
         var moi = trouverModule(MODULE_ACCUEIL);
         if (moi) {
           envoyer(EV.LANCER, moi);
-          if (R.auto) envoyer(EV.ACTION, { action: 'autolaunch', module: moi.fullName });
+          if (R.auto) {
+            envoyer(EV.ACTION, { action: 'autolaunch', module: moi.fullName });
+            envoyer(EV.ACTION, { action: 'autolaunchService', module: [moi.name] });
+          }
         }
       } else if (m.type === EV.LANCER) {
         var cible = trouverModule(m.payload);

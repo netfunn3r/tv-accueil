@@ -40,20 +40,21 @@ function chercher(ports, suite) {
   tester(ports[0], function (r) { if (r) suite(r); else chercher(ports.slice(1), suite); });
 }
 
-// La télé n'obéit à cet ordre que sur son adresse réseau, pas sur 127.0.0.1.
 function ouvrirAccueil() {
-  http.get('http://127.0.0.1:8001/api/v2/', function (r) {
-    var texte = '';
-    r.on('data', function (b) { texte += b; });
-    r.on('end', function () {
-      var ip;
-      try { ip = JSON.parse(texte).device.ip; } catch (e) { return; }
-      var ordre = http.request({ host: ip, port: 8001, path: '/api/v2/applications/' + ACCUEIL, method: 'POST' });
-      ordre.on('error', function () {});
-      ordre.end();
-    });
-  }).on('error', function () {});
+  tizen.application.launch(ACCUEIL, function () {}, function () {});
 }
+
+// Au premier démarrage, l'application Accueil se met en pause quand TizenBrew passe devant.
+// Dès que TizenBrew est prêt, on la ramène : elle termine alors l'ouverture de la tuile choisie.
+var essais = 0;
+var attenteDemarrage = setInterval(function () {
+  if (++essais > 45) { clearInterval(attenteDemarrage); return; }
+  chercher(portsEnEcoute(), function (r) {
+    if (!r) return;
+    clearInterval(attenteDemarrage);
+    if (r.url.indexOf('file:') === 0) setTimeout(ouvrirAccueil, 1000);
+  });
+}, 2000);
 
 var serveur = http.createServer(function (req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

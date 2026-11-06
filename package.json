@@ -1,6 +1,6 @@
 {
   "name": "tv-accueil",
-  "version": "1.0.3",
+  "version": "1.2.0",
   "description": "Mon accueil personnalisé : fond d'écran, écran de veille et grandes tuiles.",
   "packageType": "mods",
   "appName": "Accueil",
@@ -8,5 +8,5 @@
   "license": "MIT",
   "websiteURL": "http://127.0.0.1:8081/module/gh%2Fnetfunn3r%2Ftv-accueil/index.html",
   "main": "vide.js",
-  "serviceFile": "reveil.js"
+  "serviceFile": "pilote.js"
 }

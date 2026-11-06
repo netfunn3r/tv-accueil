@@ -94,7 +94,7 @@
     <div class="rangee" id="r-photos"></div>
     <h2>Écran de veille</h2>
     <div class="rangee" id="r-veille"></div>
-    <h2>Ouvrir cet accueil au lancement de TizenBrew</h2>
+    <h2 id="t-auto">Ouvrir cet accueil au lancement de TizenBrew</h2>
     <div class="rangee" id="r-auto"></div>
     <div id="aide">Retour pour fermer</div>
   </div>
@@ -111,25 +111,30 @@
 
   var API = 'http://127.0.0.1:8001/api/v2/applications/';
   var SERVICE = 'ws://127.0.0.1:8081';
+  var PILOTE = 'http://127.0.0.1:8099';
   var MODULE_ACCUEIL = 'gh/netfunn3r/tv-accueil';
   var MODULE_ANIME = 'gh/netfunn3r/tv-anime-sama';
-  var VERSION_ANIME = MODULE_ANIME + '@1.0.6';
+  var VERSION_ANIME = MODULE_ANIME + '@1.0.7';
   var EV = { MODULES: 4, LANCER: 5, ACTION: 10 };
 
   var ICONES = 'https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/';
   var LOGOS = 'https://cdn.simpleicons.org/';
+  var TIZENBREW = 'xvvl3S1bvH.TizenBrewStandalone';
+  // Dans la vraie application, l'API tizen est présente ; dans le module TizenBrew, non.
+  var SUR_APPLI = !!(window.tizen && window.tizen.application);
   var TUILES = [
     { nom: 'YouTube', module: 'npm/@foxreis/tizentube', logo: LOGOS + 'youtube' },
-    { nom: 'Anime-Sama', module: MODULE_ANIME, logo: 'https://anime-sama.to/img/opti/logo_banniere.webp' },
-    { nom: 'Netflix', appli: '3201907018807', logo: LOGOS + 'netflix' },
-    { nom: 'Disney+', appli: '3201901017640' },
-    { nom: 'Crunchyroll', appli: 'OGLLvqej7u.CrunchyrollWebApp', logo: LOGOS + 'crunchyroll' },
-    { nom: 'Deezer', appli: '3201608010191', logo: LOGOS + 'deezer' },
-    { nom: 'Internet', appli: '3202010022079', icone: ICONES + 'globe.svg' },
+    { nom: 'Anime-Sama', module: MODULE_ANIME, version: '@1.0.7', logo: 'https://anime-sama.to/img/opti/logo_banniere.webp' },
+    { nom: 'Netflix', appli: '3201907018807', cherche: /^netflix$/i, logo: LOGOS + 'netflix' },
+    { nom: 'Disney+', appli: '3201901017640', cherche: /^disney\+$/i },
+    { nom: 'Crunchyroll', appli: 'OGLLvqej7u.CrunchyrollWebApp', cherche: /^crunchyroll$/i, logo: LOGOS + 'crunchyroll' },
+    { nom: 'Deezer', appli: '3201608010191', cherche: /deezer/i, logo: LOGOS + 'deezer' },
+    { nom: 'Internet', appli: '3202010022079', cherche: /^internet$/i, icone: ICONES + 'globe.svg' },
     { nom: 'TizenBrew', tizenbrew: true, icone: ICONES + 'squares-four.svg' },
     { nom: 'Personnaliser', panneau: true, icone: ICONES + 'sliders-horizontal.svg' }
   ];
-  var PHOTOS = [1022, 1015, 1036, 1018, 1039, 1043];
+  var LISTE_PHOTOS = 'https://raw.githubusercontent.com/netfunn3r/tv-accueil/main/photos.json';
+  var PHOTOS = [1015, 1036, 1018, 1039, 1043];
   var DELAIS = [{ nom: '1 min', min: 1 }, { nom: '2 min', min: 2 }, { nom: '5 min', min: 5 }, { nom: '10 min', min: 10 }, { nom: 'Jamais', min: 0 }];
 
   var R = lire();
@@ -139,7 +144,7 @@
     var d = { photo: PHOTOS[0], veille: 2, auto: null };
     try {
       var s = JSON.parse(localStorage.getItem('accueil') || '{}');
-      if (PHOTOS.indexOf(s.photo) >= 0) d.photo = s.photo;
+      if (s.photo) d.photo = s.photo;
       if (typeof s.veille === 'number') d.veille = s.veille;
       if (typeof s.auto === 'boolean') d.auto = s.auto;
     } catch (e) { /* réglages par défaut */ }
@@ -151,7 +156,23 @@
 
   /* ---------- Fond d'écran ---------- */
 
-  function urlPhoto(id, l, h) { return 'https://picsum.photos/id/' + id + '/' + l + '/' + h; }
+  // Une photo est soit un numéro Picsum, soit l'adresse complète d'une image.
+  function urlPhoto(id, l, h) {
+    return typeof id === 'string' ? id : 'https://picsum.photos/id/' + id + '/' + l + '/' + h;
+  }
+
+  // La liste des fonds est en ligne : elle change sans réinstaller l'application.
+  function chargerPhotos() {
+    fetch(LISTE_PHOTOS).then(function (r) { return r.json(); }).then(function (liste) {
+      if (!liste || !liste.length) return;
+      PHOTOS = liste;
+      if (PHOTOS.indexOf(R.photo) < 0) {
+        R.photo = PHOTOS[0];
+        poserFond(R.photo);
+        ecrire();
+      }
+    }).catch(function () { /* on garde la liste intégrée */ });
+  }
 
   var fondActif = 1;
   function poserFond(id) {
@@ -218,6 +239,21 @@
 
   // Une application qui n'est pas installée n'apparaît pas : Deezer arrivera tout seul une fois installé.
   function retirerAbsentes() {
+    if (SUR_APPLI) {
+      window.tizen.application.getAppsInfo(function (applis) {
+        var courante = visibles[index];
+        visibles = visibles.filter(function (t) {
+          if (!t.cherche) return true;
+          for (var i = 0; i < applis.length; i++) {
+            if (t.cherche.test(applis[i].name) && applis[i].show !== false) { t.idTizen = applis[i].id; return true; }
+          }
+          return false;
+        });
+        index = Math.max(visibles.indexOf(courante), 0);
+        dessinerTuiles();
+      }, function () { /* liste indisponible : on garde toutes les tuiles */ });
+      return;
+    }
     TUILES.forEach(function (t) {
       if (!t.appli) return;
       fetch(API + t.appli).then(function (r) {
@@ -251,8 +287,112 @@
     setTimeout(function () { history.go(1 - history.length); }, 200);
   }
 
+  /* ---------- Lancements depuis la vraie application ---------- */
+
+  function lancerAppli(id, nom) {
+    dire('Ouverture de ' + nom);
+    window.tizen.application.launch(id, function () {}, function () { dire(nom + " ne s'ouvre pas"); });
+  }
+
+  function attendre(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  function lireInspection() {
+    return fetch(PILOTE + '/debug', { signal: AbortSignal.timeout(2500) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { return d && d.port ? d : null; })
+      .catch(function () { return null; });
+  }
+
+  // TizenBrew doit tourner avec son inspection ouverte. S'il ne tourne pas, on le démarre une fois.
+  function preparerInspection() {
+    return lireInspection().then(function (d) {
+      if (d) return d;
+      dire('Démarrage de TizenBrew');
+      window.tizen.application.launch(TIZENBREW, function () {}, function () {});
+      var essai = function (reste) {
+        if (reste <= 0) return null;
+        return attendre(2500).then(lireInspection).then(function (r) { return r || essai(reste - 1); });
+      };
+      return essai(20);
+    });
+  }
+
+  // Indique au service le module à injecter, en mettant à jour la version d'Anime-Sama si besoin.
+  function preparerModule(t) {
+    return new Promise(function (ok, non) {
+      var w = new WebSocket(SERVICE);
+      var delai = setTimeout(function () { try { w.close(); } catch (e) { /* déjà fermée */ } non('service muet'); }, 15000);
+      var frais = false;
+      w.onerror = function () { clearTimeout(delai); non('service injoignable'); };
+      w.onopen = function () { w.send(JSON.stringify({ type: EV.MODULES, payload: false })); };
+      w.onmessage = function (e) {
+        var m = JSON.parse(e.data);
+        if (m.type !== EV.MODULES) return;
+        if (!m.payload) { setTimeout(function () { w.send(JSON.stringify({ type: EV.MODULES, payload: true })); }, 500); return; }
+        var liste = m.payload;
+        var trouve = liste.filter(function (x) { return x.fullName.indexOf(t.module) === 0; })[0];
+        if (trouve && t.version && trouve.fullName !== t.module + t.version && !frais) {
+          frais = true;
+          w.send(JSON.stringify({ type: EV.ACTION, payload: { action: 'add', module: t.module + t.version } }));
+          w.send(JSON.stringify({ type: EV.ACTION, payload: { action: 'remove', module: trouve.fullName } }));
+          w.send(JSON.stringify({ type: EV.MODULES, payload: true }));
+          return;
+        }
+        if (!trouve) { clearTimeout(delai); w.close(); non('module absent'); return; }
+        var accueil = liste.filter(function (x) { return x.fullName.indexOf(MODULE_ACCUEIL) === 0; })[0];
+        if (accueil) w.send(JSON.stringify({ type: EV.ACTION, payload: { action: 'autolaunchService', module: [accueil.name] } }));
+        w.send(JSON.stringify({ type: EV.LANCER, payload: trouve }));
+        setTimeout(function () { clearTimeout(delai); w.close(); ok({ module: trouve, liste: liste }); }, 300);
+      };
+    });
+  }
+
+  // Envoie TizenBrew sur le module par son inspection. Sur son écran, il enregistre d'abord les touches.
+  function naviguer(insp, prepare) {
+    return new Promise(function (ok, non) {
+      var w = new WebSocket(insp.ws);
+      var delai = setTimeout(function () { try { w.close(); } catch (e) { /* déjà fermée */ } ok(); }, 5000);
+      w.onerror = function () { clearTimeout(delai); non('inspection injoignable'); };
+      w.onopen = function () {
+        if (insp.url.indexOf('file:') === 0) {
+          var touches = [];
+          prepare.liste.forEach(function (x) { touches = touches.concat(x.keys || []); });
+          w.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: {
+            expression: JSON.stringify(touches) + '.forEach(function(k){try{tizen.tvinputdevice.registerKey(k)}catch(e){}})' } }));
+        }
+        w.send(JSON.stringify({ id: 2, method: 'Page.navigate', params: { url: prepare.module.appPath } }));
+      };
+      w.onmessage = function (e) {
+        var m = JSON.parse(e.data);
+        if (m.id !== 2) return;
+        clearTimeout(delai);
+        w.close();
+        ok();
+      };
+    });
+  }
+
+  // On ne ferme jamais TizenBrew : on change seulement la page qu'il affiche, puis on le ramène devant.
+  function lancerModule(t) {
+    dire('Ouverture de ' + t.nom);
+    preparerInspection().then(function (insp) {
+      if (!insp) throw new Error('inspection absente');
+      return preparerModule(t).then(function (prepare) { return naviguer(insp, prepare); });
+    }).then(function () {
+      window.tizen.application.launch(TIZENBREW, function () {}, function () { dire(t.nom + " ne s'ouvre pas"); });
+    }).catch(function () {
+      dire(t.nom + " ne s'ouvre pas, réessaie dans un instant");
+    });
+  }
+
   function lancer(t) {
     if (t.panneau) { ouvrirPanneau(); return; }
+    if (SUR_APPLI) {
+      if (t.tizenbrew) lancerAppli(TIZENBREW, t.nom);
+      else if (t.module) lancerModule(t);
+      else lancerAppli(t.idTizen || t.appli, t.nom);
+      return;
+    }
     if (t.tizenbrew) { ouvrirTizenBrew(); return; }
     if (t.appli) {
       dire('Ouverture de ' + t.nom);
@@ -354,7 +494,8 @@
       d.textContent = nom;
       $('r-auto').appendChild(d);
     });
-    lignes = [$('r-photos'), $('r-veille'), $('r-auto')];
+    lignes = SUR_APPLI ? [$('r-photos'), $('r-veille')] : [$('r-photos'), $('r-veille'), $('r-auto')];
+    $('t-auto').style.display = $('r-auto').style.display = SUR_APPLI ? 'none' : '';
     marquer();
   }
 
@@ -478,9 +619,10 @@
   majHeure();
   setInterval(majHeure, 10000);
   poserFond(R.photo);
+  chargerPhotos();
   dessinerTuiles();
   retirerAbsentes();
-  connecter();
+  if (!SUR_APPLI) connecter();
   relancerVeille();
 })();
 </script>

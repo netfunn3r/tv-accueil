@@ -126,6 +126,7 @@
     { nom: 'Crunchyroll', appli: 'OGLLvqej7u.CrunchyrollWebApp', logo: LOGOS + 'crunchyroll' },
     { nom: 'Deezer', appli: '3201608010191', logo: LOGOS + 'deezer' },
     { nom: 'Internet', appli: '3202010022079', icone: ICONES + 'globe.svg' },
+    { nom: 'TizenBrew', tizenbrew: true, icone: ICONES + 'squares-four.svg' },
     { nom: 'Personnaliser', panneau: true, icone: ICONES + 'sliders-horizontal.svg' }
   ];
   var PHOTOS = [1022, 1015, 1036, 1018, 1039, 1043];
@@ -239,8 +240,20 @@
     delaiMessage = setTimeout(function () { $('message').classList.remove('visible'); }, 3000);
   }
 
+  // Une page web n'a pas le droit d'ouvrir l'écran TizenBrew : on remonte donc l'historique jusqu'à lui.
+  // L'ouverture automatique est suspendue pour ne pas revenir ici aussitôt, et reprend à la prochaine visite.
+  function ouvrirTizenBrew() {
+    if (history.length < 2) {
+      dire('Touche Maison, puis rouvre TizenBrew en appuyant sur la flèche du haut');
+      return;
+    }
+    envoyer(EV.ACTION, { action: 'autolaunch', module: '' });
+    setTimeout(function () { history.go(1 - history.length); }, 200);
+  }
+
   function lancer(t) {
     if (t.panneau) { ouvrirPanneau(); return; }
+    if (t.tizenbrew) { ouvrirTizenBrew(); return; }
     if (t.appli) {
       dire('Ouverture de ' + t.nom);
       fetch(API + t.appli, { method: 'POST', mode: 'no-cors' }).catch(function () {
@@ -298,7 +311,10 @@
         modules = m.payload;
         if (mettreAJourAnime()) { demanderModules(true); return; }
         var moi = trouverModule(MODULE_ACCUEIL);
-        if (moi) envoyer(EV.LANCER, moi);
+        if (moi) {
+          envoyer(EV.LANCER, moi);
+          if (R.auto) envoyer(EV.ACTION, { action: 'autolaunch', module: moi.fullName });
+        }
       } else if (m.type === EV.LANCER) {
         var cible = trouverModule(m.payload);
         if (cible) location.href = cible.appPath;

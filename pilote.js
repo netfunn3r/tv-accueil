@@ -114,6 +114,13 @@ function envoyerInspection(url, commandes, suite) {
 
 /* ---------- Changement de page ---------- */
 
+// Une fois TizenBrew en place, sa fermeture par le site ramène à l'accueil au lieu de quitter l'application.
+var PIEGE = "window.close=function(){fetch('http://127.0.0.1:8099/accueil',{mode:'no-cors'}).catch(function(){})};1";
+
+function poserPiege(ws) {
+  envoyerInspection(ws, [{ id: 3, method: 'Runtime.evaluate', params: { expression: PIEGE } }], function () {});
+}
+
 function hote(url) {
   var m = /^[a-z]+:\/\/(?:www\.)?([^\/:]+)/i.exec(url || '');
   return m ? m[1] : '';
@@ -127,13 +134,16 @@ function aller(url, touches) {
     setTimeout(function () {
       chercher(portsEnEcoute(), function (r) {
         if (!r) return setTimeout(tenter, 1500);
-        if (hote(r.url) === hote(url)) return;
+        if (hote(r.url) === hote(url)) { poserPiege(r.ws); return; }
         var commandes = [];
         if (touches && r.url.indexOf('file:') === 0) commandes.push({ id: 1, method: 'Runtime.evaluate', params: { expression: touches } });
         commandes.push({ id: 2, method: 'Page.navigate', params: { url: url } });
         envoyerInspection(r.ws, commandes, function () {
           setTimeout(function () {
-            chercher(portsEnEcoute(), function (v) { if (!v || hote(v.url) !== hote(url)) tenter(); });
+            chercher(portsEnEcoute(), function (v) {
+              if (!v || hote(v.url) !== hote(url)) tenter();
+              else poserPiege(v.ws);
+            });
           }, 3500);
         });
       });
@@ -144,17 +154,58 @@ function aller(url, touches) {
 
 /* ---------- Démarrage ---------- */
 
-// Au premier démarrage, l'application Accueil se met en pause quand TizenBrew passe devant.
+// Au démarrage, l'application Accueil se met en pause quand TizenBrew passe devant.
 // Dès que TizenBrew est prêt, on la ramène : elle termine alors l'ouverture de la tuile choisie.
-var essaisDemarrage = 0;
-var attenteDemarrage = setInterval(function () {
-  if (++essaisDemarrage > 45) { clearInterval(attenteDemarrage); return; }
-  chercher(portsEnEcoute(), function (r) {
-    if (!r) return;
-    clearInterval(attenteDemarrage);
-    if (r.url.indexOf('file:') === 0) setTimeout(function () { lancer(ACCUEIL); }, 1000);
-  });
-}, 2000);
+var attenteDemarrage = null;
+
+function surveillerDemarrage() {
+  var essais = 0;
+  clearInterval(attenteDemarrage);
+  attenteDemarrage = setInterval(function () {
+    if (++essais > 45) { clearInterval(attenteDemarrage); return; }
+    chercher(portsEnEcoute(), function (r) {
+      if (!r) return;
+      clearInterval(attenteDemarrage);
+      if (r.url.indexOf('file:') === 0) setTimeout(function () { lancer(ACCUEIL); }, 1000);
+    });
+  }, 2000);
+}
+surveillerDemarrage();
+
+// TizenBrew peut se croire encore prêt après une fermeture : il reste alors sans inspection.
+// On lui demande de se relancer correctement, au plus une fois toutes les 20 secondes.
+var derniereReparation = 0;
+
+function reparer() {
+  var maintenant = Date.now();
+  if (maintenant - derniereReparation < 20000) return;
+  derniereReparation = maintenant;
+  http.get('http://127.0.0.1:8001/api/v2/', function (r) {
+    var texte = '';
+    r.on('data', function (b) { texte += b; });
+    r.on('end', function () {
+      var ip;
+      try { ip = JSON.parse(texte).device.ip; } catch (e) { return; }
+      envoyerInspection('ws://127.0.0.1:8081/', [{ type: 3, payload: { tvIP: ip } }], surveillerDemarrage);
+    });
+  }).on('error', function () {});
+}
+
+// Recharge la dernière version de ce service, sans redémarrer la télé.
+function recharger() {
+  clearInterval(attenteDemarrage);
+  serveur.close();
+  require('https').get('https://cdn.jsdelivr.net/gh/netfunn3r/tv-accueil/pilote.js', function (r) {
+    var texte = '';
+    r.on('data', function (b) { texte += b; });
+    r.on('end', function () {
+      require('vm').runInNewContext(texte, {
+        require: require, Buffer: Buffer, console: console, tizen: tizen,
+        setTimeout: setTimeout, clearTimeout: clearTimeout, setInterval: setInterval, clearInterval: clearInterval
+      });
+    });
+  }).on('error', function () {});
+}
 
 /* ---------- Serveur ---------- */
 
@@ -166,7 +217,13 @@ var serveur = http.createServer(function (req, res) {
     lancer(ACCUEIL);
     return res.end('{}');
   }
+  if (req.url.indexOf('/recharger') === 0) {
+    res.end('{}');
+    recharger();
+    return;
+  }
   chercher(portsEnEcoute(), function (r) {
+    if (!r) reparer();
     res.end(JSON.stringify(r ? { port: r.port, url: r.url, ws: RELAIS } : {}));
   });
 });

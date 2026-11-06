@@ -2,6 +2,8 @@
 var http = require('http');
 var fs = require('fs');
 
+var ACCUEIL = 'AccueilTV1.Accueil';
+
 function portsEnEcoute() {
   var ports = [];
   ['/proc/net/tcp', '/proc/net/tcp6'].forEach(function (fichier) {
@@ -41,6 +43,13 @@ function chercher(ports, suite) {
 var serveur = http.createServer(function (req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
+  // La télé refuse les ordres venant d'un site : le module Anime-Sama passe par ici pour rouvrir l'accueil.
+  if (req.url.indexOf('/accueil') === 0) {
+    var ordre = http.request({ host: '127.0.0.1', port: 8001, path: '/api/v2/applications/' + ACCUEIL, method: 'POST' });
+    ordre.on('error', function () {});
+    ordre.end();
+    return res.end('{}');
+  }
   chercher(portsEnEcoute(), function (r) { res.end(JSON.stringify(r || {})); });
 });
 serveur.on('error', function () {});
